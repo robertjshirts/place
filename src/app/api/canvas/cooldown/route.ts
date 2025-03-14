@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
 
 // Import shared cooldown state
-import { userLastPlaced, COOLDOWN_TIME } from '@/lib/db';
+import { getUserLastPlaced, COOLDOWN_TIME } from '@/lib/db';
 
 export async function GET() {
   const user = await currentUser();
@@ -15,7 +15,7 @@ export async function GET() {
   }
   
   const now = Date.now();
-  const lastPlaced = userLastPlaced.get(user.username!);
+  const lastPlaced = await getUserLastPlaced(user.username!);
   
   if (!lastPlaced || now - lastPlaced >= COOLDOWN_TIME) {
     return NextResponse.json({ ready: true });

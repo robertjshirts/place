@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
-import { canvasState, userLastPlaced, COOLDOWN_TIME, CANVAS_SIZE } from '@/lib/db';
+import { getCanvasState, getUserLastPlaced, COOLDOWN_TIME, CANVAS_SIZE, saveUserLastPlaced, saveCanvasState } from '@/lib/db';
 
 export async function GET() {
+  const canvasState = await getCanvasState();
   return NextResponse.json(canvasState);
 }
 
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     
     // Check if user is on cooldown
     const now = Date.now();
-    const lastPlaced = userLastPlaced.get(user.username!);
+    const lastPlaced = await getUserLastPlaced(user.username!);
     
     if (lastPlaced && now - lastPlaced < COOLDOWN_TIME) {
       const remainingTime = Math.ceil((COOLDOWN_TIME - (now - lastPlaced)) / 1000);
@@ -46,12 +47,14 @@ export async function POST(request: NextRequest) {
     }
     
     // Update pixel and user's last placed time
+    const canvasState = await getCanvasState();
     canvasState.pixels[y][x] = {
       color,
       lastUpdated: now,
       lastUpdatedBy: user.username!,
     };
-    userLastPlaced.set(user.username!, now);
+    saveUserLastPlaced(user.username!, now);
+    saveCanvasState(canvasState);
     
     return NextResponse.json({ success: true });
   } catch (error) {
