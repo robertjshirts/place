@@ -9,7 +9,6 @@ type Pixel = {
   color: string;
   lastUpdated: number;
   lastUpdatedBy: string;
-  pending?: boolean;
 };
 
 type CanvasState = {
@@ -19,7 +18,6 @@ type CanvasState = {
 
 export default function Canvas() {
   const [canvasState, setCanvasState] = useState<CanvasState | null>(null);
-  const [pendingChanges, setPendingChanges] = useState<Record<string, Pixel>>({});
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [cooldownEnd, setCooldownEnd] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,21 +34,14 @@ export default function Canvas() {
       }
       const data = await response.json();
       
-      // Merge server state with pending changes
-      const mergedState = { ...data };
-      for (const [key, pendingPixel] of Object.entries(pendingChanges)) {
-        const [x, y] = key.split(',').map(Number);
-        mergedState.pixels[y][x] = { ...mergedState.pixels[y][x], ...pendingPixel };
-      }
-      
-      setCanvasState(mergedState);
+      setCanvasState(data);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching canvas state:', error);
       toast.error('Error fetching canvas. Try reloading.')
       setLoading(false);
     }
-  }, [pendingChanges]);
+  }, []);
 
   // Initialize user ID and fetch canvas state
   useEffect(() => {
@@ -69,6 +60,8 @@ export default function Canvas() {
     
     // Check if user is on cooldown
     if (cooldownEnd && Date.now() < cooldownEnd) {
+      const remaining = Math.ceil((cooldownEnd - Date.now()) / 1000);
+      toast.error(`Please wait ${remaining} seconds before placing another pixel`);
       return;
     }
 
@@ -104,17 +97,6 @@ export default function Canvas() {
         return;
       }
 
-      // Immediately update UI with pending change
-      const newPendingChanges = { ...pendingChanges };
-      const pixelKey = `${x},${y}`;
-      newPendingChanges[pixelKey] = {
-        color: selectedColor,
-        lastUpdated: Date.now(),
-        lastUpdatedBy: user.username || 'Anonymous',
-        pending: true
-      };
-      setPendingChanges(newPendingChanges);
-      
       // Set cooldown
       setCooldownEnd(Date.now() + 60 * 1000);
     } catch (error) {
@@ -132,7 +114,7 @@ export default function Canvas() {
   }
 
   if (!canvasState) {
-    return <div className="text-center">No canvas data available</div>;
+    return <div className="flex jsutify-center items-center h-64">We lost the canvas somehow. Blame Robbie.</div>
   }
 
   return (
@@ -161,16 +143,18 @@ export default function Canvas() {
             row.map((pixel, x) => (
               <div
                 key={`${x}-${y}`}
-                className={`cursor-pointer hover:opacity-80 transition-opacity ${
-                  pixel.pending ? 'animate-pulse' : ''
-                }`}
+                className={`${
+                  cooldownEnd && Date.now() < cooldownEnd 
+                    ? 'cursor-not-allowed opacity-50' 
+                    : 'cursor-pointer hover:opacity-80'
+                } transition-opacity`}
                 style={{
                   backgroundColor: pixel.color,
                   width: `${pixelSize}px`,
                   height: `${pixelSize}px`,
                 }}
                 onClick={() => handlePixelClick(x, y)}
-                title={`(${x + 1}, ${y + 1})`}
+                title={`(${x + 1}, ${y + 1}) - Placed by: ${pixel.lastUpdatedBy || 'unknown'}`}
               />
             ))
           )}
