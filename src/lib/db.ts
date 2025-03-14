@@ -24,7 +24,7 @@ export type User = {
 };
 
 // Database connection
-const uri = process.env.MONGO_URI;
+const uri = process.env.MONGODB_URI;
 if (!uri) {
   throw new Error("MONGO_URL environment variable is not defined");
 }
