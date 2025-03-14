@@ -65,6 +65,26 @@ export default function Canvas() {
       return;
     }
 
+    // Immediately update the canvas state for instant feedback
+    setCanvasState(prevState => {
+      if (!prevState) return null;
+      
+      // Create deep copy of the canvas state
+      const newPixels = [...prevState.pixels.map(row => [...row])];
+      
+      // Update the specific pixel
+      newPixels[y][x] = {
+        color: selectedColor,
+        lastUpdated: Date.now(),
+        lastUpdatedBy: user.username || 'unknown',
+      };
+      
+      return {
+        ...prevState,
+        pixels: newPixels,
+      };
+    });
+
     try {
       const response = await fetch('/api/canvas', {
         method: 'POST',
@@ -119,7 +139,7 @@ export default function Canvas() {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="text-center mb-2">
+      <div className="text-center mb-2 pt-8">
         <h2 className="text-xl font-bold mb-1">r/place Clone</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Click on a pixel to change its color. You can place one pixel per minute.
@@ -143,11 +163,7 @@ export default function Canvas() {
             row.map((pixel, x) => (
               <div
                 key={`${x}-${y}`}
-                className={`${
-                  cooldownEnd && Date.now() < cooldownEnd 
-                    ? 'cursor-not-allowed opacity-50' 
-                    : 'cursor-pointer hover:opacity-80'
-                } transition-opacity`}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
                 style={{
                   backgroundColor: pixel.color,
                   width: `${pixelSize}px`,

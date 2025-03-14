@@ -3,7 +3,7 @@ import { MongoClient, Db, Collection } from 'mongodb';
 // Constants
 export const CANVAS_SIZE = 50;
 export const DEFAULT_COLOR = '#FFFFFF';
-export const COOLDOWN_TIME = 60 * 1000; // 1 minute in milliseconds
+export const COOLDOWN_TIME = 10 * 1000; // 10 seconds in milliseconds
 
 // Type definitions
 export type Pixel = {
