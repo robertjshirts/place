@@ -1,13 +1,15 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import ColorPicker from './ColorPicker';
 import CooldownTimer from './CooldownTimer';
 import { useUser } from '@clerk/nextjs'
+import { toast } from 'sonner';
 
 type Pixel = {
   color: string;
   lastUpdated: number;
   lastUpdatedBy: string;
+  pending?: boolean;
 };
 
 type CanvasState = {
@@ -17,30 +19,38 @@ type CanvasState = {
 
 export default function Canvas() {
   const [canvasState, setCanvasState] = useState<CanvasState | null>(null);
+  const [pendingChanges, setPendingChanges] = useState<Record<string, Pixel>>({});
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [cooldownEnd, setCooldownEnd] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { isSignedIn, user } = useUser();
   const canvasRef = useRef<HTMLDivElement>(null);
   const pixelSize = 10; // Size of each pixel in pixels
 
   // Define fetchCanvasState function before it's used in useEffect
-  const fetchCanvasState = async () => {
+  const fetchCanvasState = useCallback(async () => {
     try {
       const response = await fetch('/api/canvas');
       if (!response.ok) {
         throw new Error('Failed to fetch canvas state');
       }
       const data = await response.json();
-      setCanvasState(data);
+      
+      // Merge server state with pending changes
+      const mergedState = { ...data };
+      for (const [key, pendingPixel] of Object.entries(pendingChanges)) {
+        const [x, y] = key.split(',').map(Number);
+        mergedState.pixels[y][x] = { ...mergedState.pixels[y][x], ...pendingPixel };
+      }
+      
+      setCanvasState(mergedState);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching canvas state:', error);
-      setError('Failed to load canvas. Please try again later.');
+      toast.error('Error fetching canvas. Try reloading.')
       setLoading(false);
     }
-  };
+  }, [pendingChanges]);
 
   // Initialize user ID and fetch canvas state
   useEffect(() => {
@@ -49,11 +59,11 @@ export default function Canvas() {
     // Refresh canvas state every 5 seconds
     const intervalId = setInterval(fetchCanvasState, 5000);
     return () => clearInterval(intervalId);
-  }, []);
+  }, [fetchCanvasState]);
 
   const handlePixelClick = async (x: number, y: number) => {
     if (!isSignedIn || !user || !canvasState) {
-      setError('You must be signed in to place a pixel');
+      toast.error('You must be signed in to place a pixel');
       return;
     }
     
@@ -90,25 +100,26 @@ export default function Canvas() {
           }
           return;
         }
-        setError(data.error || 'Failed to update pixel');
+        toast.error('Failed to paint pixel');
         return;
       }
 
-      // Update local canvas state
-      const newCanvasState = { ...canvasState };
-      newCanvasState.pixels[y][x] = {
+      // Immediately update UI with pending change
+      const newPendingChanges = { ...pendingChanges };
+      const pixelKey = `${x},${y}`;
+      newPendingChanges[pixelKey] = {
         color: selectedColor,
         lastUpdated: Date.now(),
         lastUpdatedBy: user.username || 'Anonymous',
+        pending: true
       };
-      setCanvasState(newCanvasState);
+      setPendingChanges(newPendingChanges);
       
       // Set cooldown
       setCooldownEnd(Date.now() + 60 * 1000);
-      setError(null);
     } catch (error) {
       console.error('Error updating pixel:', error);
-      setError('Failed to update pixel. Please try again later.');
+        toast.error('Failed to paint pixel');
     }
   };
 
@@ -116,8 +127,8 @@ export default function Canvas() {
     return <div className="flex justify-center items-center h-64">Loading canvas...</div>;
   }
 
-  if (error && !canvasState) {
-    return <div className="text-red-500 text-center">{error}</div>;
+  if (!canvasState) {
+    return <div className="text-red-500 text-center">There seems to have been an error. Try reloading.</div>;
   }
 
   if (!canvasState) {
@@ -136,8 +147,6 @@ export default function Canvas() {
         )}
       </div>
 
-      {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
-
       <div className="relative">
         <div 
           ref={canvasRef}
@@ -152,7 +161,9 @@ export default function Canvas() {
             row.map((pixel, x) => (
               <div
                 key={`${x}-${y}`}
-                className="cursor-pointer hover:opacity-80 transition-opacity"
+                className={`cursor-pointer hover:opacity-80 transition-opacity ${
+                  pixel.pending ? 'animate-pulse' : ''
+                }`}
                 style={{
                   backgroundColor: pixel.color,
                   width: `${pixelSize}px`,

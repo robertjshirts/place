@@ -29,7 +29,11 @@ if (!uri) {
   throw new Error("MONGO_URL environment variable is not defined");
 }
 
-const client = new MongoClient(uri);
+const client = new MongoClient(uri, {
+  connectTimeoutMS: 5000,
+  socketTimeoutMS: 10000,
+  serverSelectionTimeoutMS: 5000,
+});
 let db: Db;
 let canvasCollection: Collection<CanvasState>;
 let usersCollection: Collection<User>;
@@ -41,6 +45,9 @@ async function connect(): Promise<void> {
   try {
     await client.connect();
     db = client.db('place');
+    
+    // Test the connection
+    await db.command({ ping: 1 });
     
     // Initialize collections
     canvasCollection = db.collection<CanvasState>('canvas');
@@ -61,7 +68,7 @@ async function connect(): Promise<void> {
     console.log('Connected to MongoDB and ensured collections exist');
   } catch (err) {
     console.error('Error connecting to MongoDB:', err);
-    throw err;
+    throw new Error('Failed to connect to database. Please check your network connection and database status.');
   }
 }
 
