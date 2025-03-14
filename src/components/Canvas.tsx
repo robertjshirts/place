@@ -1,9 +1,8 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
-import { generateUserId } from '@/utils/userId';
 import ColorPicker from './ColorPicker';
 import CooldownTimer from './CooldownTimer';
-import { SignUp, useUser } from '@clerk/nextjs'
+import { useUser } from '@clerk/nextjs'
 
 type Pixel = {
   color: string;
@@ -22,7 +21,7 @@ export default function Canvas() {
   const [cooldownEnd, setCooldownEnd] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { isSignedIn, user } = useUser();
   const canvasRef = useRef<HTMLDivElement>(null);
   const pixelSize = 10; // Size of each pixel in pixels
 
@@ -45,8 +44,6 @@ export default function Canvas() {
 
   // Initialize user ID and fetch canvas state
   useEffect(() => {
-    const id = generateUserId();
-    setUserId(id);
     fetchCanvasState();
 
     // Refresh canvas state every 5 seconds
@@ -54,11 +51,11 @@ export default function Canvas() {
     return () => clearInterval(intervalId);
   }, []);
 
-  const { isSignedIn } = useUser();
-  if (!isSignedIn) return <SignUp />
-
   const handlePixelClick = async (x: number, y: number) => {
-    if (!userId || !canvasState) return;
+    if (!isSignedIn || !user || !canvasState) {
+      setError('You must be signed in to place a pixel');
+      return;
+    }
     
     // Check if user is on cooldown
     if (cooldownEnd && Date.now() < cooldownEnd) {
@@ -75,7 +72,7 @@ export default function Canvas() {
           x,
           y,
           color: selectedColor,
-          userId,
+          username: user.username,
         }),
       });
 
@@ -91,6 +88,7 @@ export default function Canvas() {
           } else {
             setCooldownEnd(Date.now() + 60 * 1000); // Default to 60 seconds
           }
+          return;
         }
         setError(data.error || 'Failed to update pixel');
         return;
@@ -101,7 +99,7 @@ export default function Canvas() {
       newCanvasState.pixels[y][x] = {
         color: selectedColor,
         lastUpdated: Date.now(),
-        lastUpdatedBy: userId,
+        lastUpdatedBy: user.username || 'Anonymous',
       };
       setCanvasState(newCanvasState);
       
@@ -133,8 +131,8 @@ export default function Canvas() {
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Click on a pixel to change its color. You can place one pixel per minute.
         </p>
-        {userId && (
-          <p className="text-xs text-gray-500 mt-1">Your ID: {userId.substring(0, 8)}...</p>
+        {user?.username && (
+          <p className="text-xs text-gray-500 mt-1">Signed in as: {user.username}</p>
         )}
       </div>
 
@@ -161,7 +159,7 @@ export default function Canvas() {
                   height: `${pixelSize}px`,
                 }}
                 onClick={() => handlePixelClick(x, y)}
-                title={`(${x}, ${y})`}
+                title={`(${x + 1}, ${y + 1})`}
               />
             ))
           )}

@@ -6,22 +6,30 @@ interface CooldownTimerProps {
   cooldownEnd: number | null;
 }
 
-export default function CooldownTimer({ cooldownEnd }: CooldownTimerProps) {
+export default function CooldownTimer({ cooldownEnd: initialCooldown }: CooldownTimerProps) {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [currentCooldownEnd, setCurrentCooldownEnd] = useState<number | null>(initialCooldown);
+
+  // Initialize cooldown from props
+  useEffect(() => {
+    setIsSignedIn(true);
+    setCurrentCooldownEnd(initialCooldown);
+  }, [initialCooldown]);
 
   useEffect(() => {
-    if (!cooldownEnd) {
+    if (!currentCooldownEnd || !isSignedIn) {
       setTimeRemaining(null);
       return;
     }
 
     // Calculate initial time remaining
-    const initialTimeRemaining = Math.max(0, cooldownEnd - Date.now());
+    const initialTimeRemaining = Math.max(0, currentCooldownEnd - Date.now());
     setTimeRemaining(initialTimeRemaining);
 
     // Update timer every second
     const intervalId = setInterval(() => {
-      const remaining = Math.max(0, cooldownEnd - Date.now());
+      const remaining = Math.max(0, currentCooldownEnd - Date.now());
       setTimeRemaining(remaining);
 
       // Clear interval when timer reaches 0
@@ -32,7 +40,7 @@ export default function CooldownTimer({ cooldownEnd }: CooldownTimerProps) {
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [cooldownEnd]);
+  }, [currentCooldownEnd, isSignedIn]);
 
   if (!timeRemaining) {
     return (
