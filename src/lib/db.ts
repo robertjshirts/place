@@ -1,27 +1,11 @@
+import "server-only";
+
 import { MongoClient, Db, Collection } from 'mongodb';
+import { CanvasState, User } from '@/lib/types'
 
-// Constants
-export const CANVAS_SIZE = 50;
-export const DEFAULT_COLOR = '#FFFFFF';
-export const COOLDOWN_TIME = 10 * 1000; // 10 seconds in milliseconds
-
-// Type definitions
-export type Pixel = {
-  color: string;
-  lastUpdated: number;
-  lastUpdatedBy: string;
-};
-
-export type CanvasState = {
-  id: string;
-  pixels: Pixel[][];
-  size: number;
-};
-
-export type User = {
-  id: string;
-  lastPlaced: number;
-};
+// Exported collections and functions
+export let canvasCollection: Collection<CanvasState>;
+export let usersCollection: Collection<User>;
 
 // Database connection
 const uri = process.env.MONGODB_URI;
@@ -35,8 +19,6 @@ const client = new MongoClient(uri, {
   serverSelectionTimeoutMS: 5000,
 });
 let db: Db;
-let canvasCollection: Collection<CanvasState>;
-let usersCollection: Collection<User>;
 
 /**
  * Connects to MongoDB and initializes collections
@@ -75,82 +57,8 @@ async function connect(): Promise<void> {
 /**
  * Ensures database connection is established
  */
-async function ensureConnection(): Promise<void> {
+export async function ensureConnection(): Promise<void> {
   if (!db) {
     await connect();
   }
-}
-
-/**
- * Saves the current canvas state to the database
- */
-export async function saveCanvasState(state: CanvasState): Promise<void> {
-  await ensureConnection();
-  await canvasCollection.updateOne(
-    { id: 'current' },
-    { $set: { ...state, id: 'current' } },
-    { upsert: true }
-  );
-}
-
-/**
- * Records when a user last placed a pixel
- */
-export async function saveUserLastPlaced(
-  username: string,
-  timestamp: number
-): Promise<void> {
-  await ensureConnection();
-  await usersCollection.updateOne(
-    { id: username },
-    { $set: { id: username, lastPlaced: timestamp } },
-    { upsert: true }
-  );
-}
-
-/**
- * Creates a new blank canvas state
- */
-function createNewCanvasState(): CanvasState {
-  return {
-    id: 'current',
-    pixels: Array(CANVAS_SIZE)
-      .fill(null)
-      .map(() =>
-        Array(CANVAS_SIZE)
-          .fill(null)
-          .map(() => ({
-            color: DEFAULT_COLOR,
-            lastUpdated: Date.now(),
-            lastUpdatedBy: '',
-          }))
-      ),
-    size: CANVAS_SIZE,
-  };
-}
-
-/**
- * Retrieves the current canvas state or creates a new one if none exists
- */
-export async function getCanvasState(): Promise<CanvasState> {
-  await ensureConnection();
-  const state = await canvasCollection.findOne({ id: 'current' });
-
-  if (!state) {
-    // Initialize new canvas state
-    const newState = createNewCanvasState();
-    await saveCanvasState(newState);
-    return newState;
-  }
-  
-  return state;
-}
-
-/**
- * Gets the timestamp of when a user last placed a pixel
- */
-export async function getUserLastPlaced(username: string): Promise<number> {
-  await ensureConnection();
-  const user = await usersCollection.findOne({ id: username });
-  return user?.lastPlaced ?? 0;
 }

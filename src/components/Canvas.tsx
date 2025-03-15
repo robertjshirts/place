@@ -1,49 +1,36 @@
 'use client';
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import ColorPicker from './ColorPicker';
 import CooldownTimer from './CooldownTimer';
 import { useUser } from '@clerk/nextjs'
 import { toast } from 'sonner';
+import { useStore } from '@/lib/store';
+import { getPixelCooldownEnd } from '@/lib/cooldown';
+import { getCanvasState, placePixel } from '@/lib/canvas';
+import { COOLDOWN_INTERVAL } from '@/lib/types';
 
-type Pixel = {
-  color: string;
-  lastUpdated: number;
-  lastUpdatedBy: string;
-};
-
-type CanvasState = {
-  pixels: Pixel[][];
-  size: number;
-};
 
 export default function Canvas() {
-  const [canvasState, setCanvasState] = useState<CanvasState | null>(null);
-  const [selectedColor, setSelectedColor] = useState('#000000');
-  const [cooldownEnd, setCooldownEnd] = useState<number | null>(null);
+  const { canvasState, setCanvasState, selectedColor, setSelectedColor, cooldownEnd, setCooldownEnd, updateClientPixel } = useStore();
   const [loading, setLoading] = useState(true);
-  const { isSignedIn, user } = useUser();
+  const { user } = useUser();
   const canvasRef = useRef<HTMLDivElement>(null);
   const pixelSize = 10; // Size of each pixel in pixels
 
-  // Define fetchCanvasState function before it's used in useEffect
+
+  // Fetch the canvasState on page load
   const fetchCanvasState = useCallback(async () => {
     try {
-      const response = await fetch('/api/canvas');
-      if (!response.ok) {
-        throw new Error('Failed to fetch canvas state');
-      }
-      const data = await response.json();
-      
-      setCanvasState(data);
+      setCanvasState(await getCanvasState());
       setLoading(false);
     } catch (error) {
       console.error('Error fetching canvas state:', error);
       toast.error('Error fetching canvas. Try reloading.')
       setLoading(false);
     }
-  }, []);
+  }, [setCanvasState]);
 
-  // Initialize user ID and fetch canvas state
+  // Refetch every 5s
   useEffect(() => {
     fetchCanvasState();
 
@@ -52,77 +39,45 @@ export default function Canvas() {
     return () => clearInterval(intervalId);
   }, [fetchCanvasState]);
 
+  // Get initial pixel cooldown
+  useEffect(() => {
+    if (!user) return;
+    getPixelCooldownEnd(user.username!)
+      .then((storedCooldownEnd) => {
+        if (!storedCooldownEnd) return;
+        if (Date.now() >= storedCooldownEnd) {
+          setCooldownEnd(storedCooldownEnd);
+        }
+      })
+  }, [user, setCooldownEnd])
+
+  // Handle pixel click
   const handlePixelClick = async (x: number, y: number) => {
-    if (!isSignedIn || !user || !canvasState) {
+    if (!user || !canvasState) {
       toast.error('You must be signed in to place a pixel');
       return;
     }
     
     // Check if user is on cooldown
-    if (cooldownEnd && Date.now() < cooldownEnd) {
-      const remaining = Math.ceil((cooldownEnd - Date.now()) / 1000);
+    if (!cooldownEnd) {
+      setCooldownEnd(await getPixelCooldownEnd(user.username!));
+    }
+
+    if (Date.now() < cooldownEnd!) {
+      const remaining = Math.ceil((cooldownEnd! - Date.now()) / 1000);
       toast.error(`Please wait ${remaining} seconds before placing another pixel`);
       return;
     }
 
-    // Immediately update the canvas state for instant feedback
-    setCanvasState(prevState => {
-      if (!prevState) return null;
-      
-      // Create deep copy of the canvas state
-      const newPixels = [...prevState.pixels.map(row => [...row])];
-      
-      // Update the specific pixel
-      newPixels[y][x] = {
-        color: selectedColor,
-        lastUpdated: Date.now(),
-        lastUpdatedBy: user.username || 'unknown',
-      };
-      
-      return {
-        ...prevState,
-        pixels: newPixels,
-      };
-    });
-
-    try {
-      const response = await fetch('/api/canvas', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          x,
-          y,
-          color: selectedColor,
-          username: user.username,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          // Parse the remaining time from the error message
-          const match = data.error.match(/wait (\d+) seconds/);
-          if (match && match[1]) {
-            const seconds = parseInt(match[1], 10);
-            setCooldownEnd(Date.now() + seconds * 1000);
-          } else {
-            setCooldownEnd(Date.now() + 60 * 1000); // Default to 60 seconds
-          }
-          return;
-        }
-        toast.error('Failed to paint pixel');
-        return;
-      }
-
-      // Set cooldown
-      setCooldownEnd(Date.now() + 60 * 1000);
-    } catch (error) {
-      console.error('Error updating pixel:', error);
-        toast.error('Failed to paint pixel');
+    // Try to place a pixel
+    const postPixelCooldownEnd = await placePixel(x, y, selectedColor);
+    if (!postPixelCooldownEnd) {
+      toast.error("Something weird happened. Reload the page.");
+      return;
     }
+
+    updateClientPixel(x, y, selectedColor, user.username!);
+    setCooldownEnd(postPixelCooldownEnd);
   };
 
   if (loading) {
@@ -133,16 +88,12 @@ export default function Canvas() {
     return <div className="text-red-500 text-center">There seems to have been an error. Try reloading.</div>;
   }
 
-  if (!canvasState) {
-    return <div className="flex jsutify-center items-center h-64">We lost the canvas somehow. Blame Robbie.</div>
-  }
-
   return (
     <div className="flex flex-col items-center gap-4">
       <div className="text-center mb-2 pt-8">
         <h2 className="text-xl font-bold mb-1">r/place Clone</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Click on a pixel to change its color. You can place one pixel per minute.
+          Click on a pixel to change its color. You can place one pixel every 10 seconds.
         </p>
         {user?.username && (
           <p className="text-xs text-gray-500 mt-1">Signed in as: {user.username}</p>
