@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { useStore } from '@/lib/store';
 import { getPixelCooldownEnd } from '@/lib/cooldown';
 import { getCanvasState, placePixel } from '@/lib/canvas';
-import { COOLDOWN_INTERVAL } from '@/lib/types';
 
 
 export default function Canvas() {
