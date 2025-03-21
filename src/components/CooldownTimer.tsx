@@ -1,35 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useStore } from '@/lib/store';
 
-interface CooldownTimerProps {
-  cooldownEnd: number | null;
-}
-
-export default function CooldownTimer({ cooldownEnd: initialCooldown }: CooldownTimerProps) {
+export default function CooldownTimer() {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const [isSignedIn, setIsSignedIn] = useState(false);
-  const [currentCooldownEnd, setCurrentCooldownEnd] = useState<number | null>(initialCooldown);
-
-  // Initialize cooldown from props
-  useEffect(() => {
-    setIsSignedIn(true);
-    setCurrentCooldownEnd(initialCooldown);
-  }, [initialCooldown]);
+  const cooldownEnd = useStore(state => state.cooldownEnd);
 
   useEffect(() => {
-    if (!currentCooldownEnd || !isSignedIn) {
+    if (!cooldownEnd) {
       setTimeRemaining(null);
       return;
     }
 
     // Calculate initial time remaining
-    const initialTimeRemaining = Math.max(0, currentCooldownEnd - Date.now());
+    const initialTimeRemaining = Math.max(0, cooldownEnd - Date.now());
     setTimeRemaining(initialTimeRemaining);
 
     // Update timer every second
     const intervalId = setInterval(() => {
-      const remaining = Math.max(0, currentCooldownEnd - Date.now());
+      const remaining = Math.max(0, cooldownEnd - Date.now());
       setTimeRemaining(remaining);
 
       // Clear interval when timer reaches 0
@@ -40,7 +30,7 @@ export default function CooldownTimer({ cooldownEnd: initialCooldown }: Cooldown
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [currentCooldownEnd, isSignedIn]);
+  }, [cooldownEnd]);
 
   if (!timeRemaining) {
     return (

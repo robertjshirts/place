@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { EyeDropper } from './Eyedropper';
 
 // Predefined color palette
 const COLORS = [
@@ -67,8 +66,6 @@ export default function ColorPicker({ selectedColor, onColorChange }: ColorPicke
         ))}
       </div>
 
-      <EyeDropper onColorSelected={console.log}></EyeDropper>
-      
       <button
         className="text-xs underline mt-1"
         onClick={() => setShowCustom(!showCustom)}

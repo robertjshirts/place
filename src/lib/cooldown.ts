@@ -9,10 +9,7 @@ import { COOLDOWN_INTERVAL } from './types';
  * @returns An epoch time
  */
 export async function getPixelCooldownEnd(username: string) {
-  const cooldown = await usersCollection.findOne({
-    where: { username },
-    select: { pixelCooldown: true },
-  });
+  const cooldown = await usersCollection.findOne({ id: username });
 
   if (!cooldown) {
     return Date.now();
@@ -26,7 +23,7 @@ export async function resetPixelCooldown(username: string) {
   const cooldownEnd = Date.now() + COOLDOWN_INTERVAL;
   await usersCollection.updateOne(
       { id: username },
-      { $set: { lastPlaced: cooldownEnd } },
+      { $set: { pixelCooldownEnd: cooldownEnd } },
       { upsert: true }
   );
   return cooldownEnd;

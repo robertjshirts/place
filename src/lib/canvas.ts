@@ -68,10 +68,9 @@ export async function getCanvasState(): Promise<CanvasState> {
  * Place a pixel, returns the cooldownEnd
  */
 export async function placePixel(x: number, y: number, selectedColor: string) {
-  console.log("Placing pixel")
   const user = await currentUser();
   if (!user) return null;
-  console.log("Username: ", user.username);
+
   if (x < 0 || x >= CANVAS_SIZE || y < 0 || y >= CANVAS_SIZE) {
     return null;
   }

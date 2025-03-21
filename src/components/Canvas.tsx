@@ -1,65 +1,44 @@
 'use client';
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useRef } from 'react';
 import ColorPicker from './ColorPicker';
 import CooldownTimer from './CooldownTimer';
 import { useUser } from '@clerk/nextjs'
 import { toast } from 'sonner';
 import { useStore } from '@/lib/store';
-import { getPixelCooldownEnd } from '@/lib/cooldown';
-import { getCanvasState, placePixel } from '@/lib/canvas';
+import { placePixel } from '@/lib/canvas';
+import { useFetchPixelCooldown } from '@/lib/hooks/useFetchPixelCooldown';
+import { useFetchCanvas } from '@/lib/hooks/useFetchCanvas';
 
 
 export default function Canvas() {
-  const { canvasState, setCanvasState, selectedColor, setSelectedColor, cooldownEnd, setCooldownEnd, updateClientPixel } = useStore();
-  const [loading, setLoading] = useState(true);
+  const { 
+    loading,
+    canvasState, 
+    selectedColor, 
+    setSelectedColor, 
+    cooldownEnd, 
+    setCooldownEnd,
+    updateClientPixel 
+  } = useStore();
+
   const { user } = useUser();
   const canvasRef = useRef<HTMLDivElement>(null);
   const pixelSize = 10; // Size of each pixel in pixels
 
-
-  // Fetch the canvasState on page load
-  const fetchCanvasState = useCallback(async () => {
-    try {
-      setCanvasState(await getCanvasState());
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching canvas state:', error);
-      toast.error('Error fetching canvas. Try reloading.')
-      setLoading(false);
-    }
-  }, [setCanvasState]);
-
-  // Refetch every 5s
-  useEffect(() => {
-    fetchCanvasState();
-
-    // Refresh canvas state every 5 seconds
-    const intervalId = setInterval(fetchCanvasState, 5000);
-    return () => clearInterval(intervalId);
-  }, [fetchCanvasState]);
-
-  // Get initial pixel cooldown
-  useEffect(() => {
-    if (!user) return;
-    getPixelCooldownEnd(user.username!)
-      .then((storedCooldownEnd) => {
-        if (!storedCooldownEnd) return;
-        if (Date.now() >= storedCooldownEnd) {
-          setCooldownEnd(storedCooldownEnd);
-        }
-      })
-  }, [user, setCooldownEnd])
+  // Fetch initial pixel cooldown
+  useFetchPixelCooldown(user?.username);
+  useFetchCanvas();
 
   // Handle pixel click
   const handlePixelClick = async (x: number, y: number) => {
-    if (!user || !canvasState) {
-      toast.error('You must be signed in to place a pixel');
+    if (!canvasState) {
+      toast.error('There was an error. Try reloading the page');
       return;
     }
-    
-    // Check if user is on cooldown
-    if (!cooldownEnd) {
-      setCooldownEnd(await getPixelCooldownEnd(user.username!));
+
+    if (!user) {
+      toast.error('You must be signed in to place a pixel');
+      return;
     }
 
     if (Date.now() < cooldownEnd!) {
@@ -68,6 +47,9 @@ export default function Canvas() {
       return;
     }
 
+    // Show change immediately
+    updateClientPixel(x, y, selectedColor, user.username!);
+
     // Try to place a pixel
     const postPixelCooldownEnd = await placePixel(x, y, selectedColor);
     if (!postPixelCooldownEnd) {
@@ -75,7 +57,6 @@ export default function Canvas() {
       return;
     }
 
-    updateClientPixel(x, y, selectedColor, user.username!);
     setCooldownEnd(postPixelCooldownEnd);
   };
 
@@ -129,7 +110,7 @@ export default function Canvas() {
 
       <div className="flex flex-col sm:flex-row items-center gap-4 mt-4">
         <ColorPicker selectedColor={selectedColor} onColorChange={setSelectedColor} />
-        <CooldownTimer cooldownEnd={cooldownEnd} />
+        <CooldownTimer />
       </div>
     </div>
   );

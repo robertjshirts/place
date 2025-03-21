@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { Pixel, CanvasState } from '@/lib/types'
 
 type Store = {
+  loading: boolean;
+  setLoading: (isLoading: boolean) => void;
+
   canvasState: CanvasState | null;
   setCanvasState: (state: CanvasState | null) => void;
   
@@ -15,6 +18,9 @@ type Store = {
 };
 
 export const useStore = create<Store>((set) => ({
+  loading: true,
+  setLoading: (isLoading) => set({ loading: isLoading }),
+
   canvasState: null,
   setCanvasState: (state) => set({ canvasState: state }),
   
