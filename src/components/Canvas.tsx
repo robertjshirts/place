@@ -73,7 +73,7 @@ export default function Canvas() {
       <div className="text-center mb-2 pt-8">
         <h2 className="text-xl font-bold mb-1">r/place Clone</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Click on a pixel to change its color. You can place one pixel every 10 seconds.
+          Click on a pixel to change its color. You can place one pixel every 15 seconds.
         </p>
         {user?.username && (
           <p className="text-xs text-gray-500 mt-1">Signed in as: {user.username}</p>

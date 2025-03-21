@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "i made this in 3 hours",
-  description: "An r/place clone vibe coded by robertjshirts",
+  title: "Robbie's r/place",
+  description: "An r/place clone (initially) vibe coded by robertjshirts",
 };
 
 export default function RootLayout({
